@@ -84,6 +84,9 @@ export default function App() {
   const [selectedTeeIdx, setSelectedTeeIdx] = useState(null)
   const [courseLoading, setCourseLoading] = useState(false)
   const searchTimeout = useRef(null)
+  const [roundDetail, setRoundDetail] = useState(null)
+  const [editMode, setEditMode] = useState(false)
+  const [editScores, setEditScores] = useState([])
 
   // Load saved rounds on mount
   useEffect(() => {
@@ -187,6 +190,33 @@ export default function App() {
     setActiveRound(null)
     setHoleData([])
     alert(`Round complete! ${round.totalScore} (${scoreToPar(round.totalScore-round.totalPar)})`)
+  }
+
+  // ── ROUND DETAIL ───────────────────────────────────────
+  const openRoundDetail = (r) => { setRoundDetail(r); setEditMode(false); setEditScores([]) }
+  const closeRoundDetail = () => { setRoundDetail(null); setEditMode(false); setEditScores([]) }
+  const startEditRound = () => {
+    setEditScores(roundDetail.holeData.map(h => h?.score ?? null))
+    setEditMode(true)
+  }
+  const saveEditRound = () => {
+    const newHoleData = roundDetail.holeData.map((h, i) => ({
+      ...(h || { fir:false, gir:false, putts:2, penalties:0, notes:'', shots:[] }),
+      score: editScores[i] ?? roundDetail.pars[i]
+    }))
+    const updated = { ...roundDetail, holeData: newHoleData, totalScore: newHoleData.reduce((s,h)=>s+(h?.score||0),0) }
+    const newRounds = rounds.map(r => r.id === updated.id ? updated : r)
+    setRounds(newRounds)
+    localStorage.setItem('caddie_rounds', JSON.stringify(newRounds))
+    setRoundDetail(updated)
+    setEditMode(false)
+  }
+  const deleteRound = (id) => {
+    if (!window.confirm('Delete this round?')) return
+    const newRounds = rounds.filter(r => r.id !== id)
+    setRounds(newRounds)
+    localStorage.setItem('caddie_rounds', JSON.stringify(newRounds))
+    closeRoundDetail()
   }
 
   // ── COURSE SEARCH ──────────────────────────────────────
@@ -548,7 +578,7 @@ export default function App() {
 
             <div className="section-title">ROUND HISTORY</div>
             {rounds.map(r=>{ const d=r.totalScore-r.totalPar; const unfinished=r.status==='unfinished'; return (
-              <div key={r.id} className="round-item">
+              <div key={r.id} className="round-item" style={{cursor:'pointer'}} onClick={()=>openRoundDetail(r)}>
                 <div className="round-item-left">
                   <h3>{r.course}{unfinished && <span style={{marginLeft:7,fontSize:10,color:'var(--muted)',fontWeight:400,border:'1px solid var(--border)',borderRadius:4,padding:'1px 5px',verticalAlign:'middle'}}>UNFINISHED</span>}</h3>
                   <p>{r.date} · {unfinished ? `${r.holesCompleted}/${r.holes}` : r.holes} holes · Par {r.totalPar}</p>
@@ -563,6 +593,104 @@ export default function App() {
       {/* ── FAB ── */}
       {tab==='scorecard' && !activeRound && (
         <button className="fab" onClick={openModal}>+</button>
+      )}
+
+      {/* ── ROUND DETAIL SHEET ── */}
+      {roundDetail && (
+        <div className="modal-overlay open" onClick={e=>{if(e.target.className==='modal-overlay open')closeRoundDetail()}}>
+          <div className="modal">
+            {/* Header */}
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:20}}>
+              <div style={{flex:1,paddingRight:12}}>
+                <h2 style={{fontFamily:'var(--font-display)',fontSize:26,lineHeight:1.1,marginBottom:4}}>{roundDetail.course}</h2>
+                <div style={{fontSize:11,color:'var(--muted)'}}>{roundDetail.date}{roundDetail.teeName?` · ${roundDetail.teeName} tees`:''}{roundDetail.status==='unfinished'?` · ${roundDetail.holesCompleted}/${roundDetail.holes} holes`:''}</div>
+              </div>
+              {(()=>{ const d=roundDetail.totalScore-roundDetail.totalPar; return (
+                <div style={{textAlign:'right',flexShrink:0}}>
+                  <div style={{fontFamily:'var(--font-display)',fontSize:44,lineHeight:1,color:d>0?'var(--red)':d<0?'var(--green)':'var(--sand)'}}>{roundDetail.status==='unfinished'?roundDetail.totalScore:scoreToPar(d)}</div>
+                  <div style={{fontSize:11,color:'var(--muted)'}}>{roundDetail.status==='unfinished'?`${roundDetail.holesCompleted} holes`:`${roundDetail.totalScore} · Par ${roundDetail.totalPar}`}</div>
+                </div>
+              )})()}
+            </div>
+
+            {/* Stats */}
+            {(()=>{
+              const completed=roundDetail.holeData.filter(Boolean)
+              const firElig=completed.filter((_,i)=>roundDetail.pars[i]!==3)
+              const firHit=firElig.filter(h=>h.fir).length
+              const girHit=completed.filter(h=>h.gir).length
+              const totalPutts=completed.reduce((s,h)=>s+(h.putts||0),0)
+              const pens=completed.reduce((s,h)=>s+(h.penalties||0),0)
+              const eagles=completed.filter((h,i)=>(h.score-roundDetail.pars[i])<=-2).length
+              const birdies=completed.filter((h,i)=>(h.score-roundDetail.pars[i])===-1).length
+              const bogeys=completed.filter((h,i)=>(h.score-roundDetail.pars[i])===1).length
+              const doubles=completed.filter((h,i)=>(h.score-roundDetail.pars[i])>=2).length
+              return (<>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:8,marginBottom:12}}>
+                  {[{label:'FIR',val:firElig.length>0?`${Math.round(firHit/firElig.length*100)}%`:'—'},
+                    {label:'GIR',val:completed.length>0?`${Math.round(girHit/completed.length*100)}%`:'—'},
+                    {label:'PUTTS',val:completed.length>0?(totalPutts/completed.length).toFixed(1):'—'},
+                    {label:'PENS',val:pens}
+                  ].map(s=>(
+                    <div key={s.label} style={{background:'var(--surface2)',borderRadius:10,padding:'10px 6px',textAlign:'center'}}>
+                      <div style={{fontFamily:'var(--font-display)',fontSize:22,color:'var(--white)'}}>{s.val}</div>
+                      <div style={{fontSize:9,color:'var(--muted)',letterSpacing:'0.1em',marginTop:2}}>{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{display:'flex',gap:6,marginBottom:16,flexWrap:'wrap'}}>
+                  {eagles>0&&<span style={{fontSize:11,background:'rgba(255,215,0,0.12)',color:'#ffd700',borderRadius:6,padding:'3px 8px'}}>{eagles} eagle{eagles>1?'s':''}</span>}
+                  {birdies>0&&<span style={{fontSize:11,background:'rgba(61,220,104,0.12)',color:'var(--green)',borderRadius:6,padding:'3px 8px'}}>{birdies} birdie{birdies>1?'s':''}</span>}
+                  {bogeys>0&&<span style={{fontSize:11,background:'rgba(255,153,85,0.08)',color:'#ff9955',borderRadius:6,padding:'3px 8px'}}>{bogeys} bogey{bogeys>1?'s':''}</span>}
+                  {doubles>0&&<span style={{fontSize:11,background:'rgba(255,92,92,0.08)',color:'var(--red)',borderRadius:6,padding:'3px 8px'}}>{doubles} double{doubles>1?'s':''}</span>}
+                </div>
+              </>)
+            })()}
+
+            {/* Scorecard */}
+            {!editMode && (<>
+              <div className="modal-label">SCORECARD</div>
+              <div style={{display:'flex',gap:4,flexWrap:'wrap',marginBottom:20}}>
+                {roundDetail.holeData.map((h,i)=>{
+                  if(!h) return <div key={i} style={{width:32,height:32,borderRadius:6,background:'var(--surface2)',border:'1px solid var(--border)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,color:'var(--muted)'}}>{i+1}</div>
+                  const d=h.score-roundDetail.pars[i]
+                  const bg=d<=-2?'rgba(255,215,0,0.15)':d===-1?'rgba(61,220,104,0.15)':d===1?'rgba(255,153,85,0.1)':d>=2?'rgba(255,92,92,0.1)':'var(--surface2)'
+                  const col=d<=-2?'#ffd700':d===-1?'var(--green)':d===1?'#ff9955':d>=2?'var(--red)':'var(--white)'
+                  return <div key={i} style={{width:32,height:32,borderRadius:6,background:bg,border:`1px solid ${col}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:600,color:col}}>{h.score}</div>
+                })}
+              </div>
+            </>)}
+
+            {/* Edit mode */}
+            {editMode && (<>
+              <div className="modal-label" style={{marginBottom:8}}>EDIT SCORES</div>
+              <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:16,maxHeight:240,overflowY:'auto'}}>
+                {editScores.map((s,i)=>(
+                  <div key={i} style={{display:'flex',alignItems:'center',justifyContent:'space-between',background:'var(--surface2)',borderRadius:8,padding:'8px 12px'}}>
+                    <span style={{fontSize:11,color:'var(--muted)',width:80}}>Hole {i+1} · Par {roundDetail.pars[i]}</span>
+                    <div style={{display:'flex',alignItems:'center',gap:14}}>
+                      <button onClick={()=>setEditScores(p=>p.map((v,j)=>j===i?Math.max(1,(v??roundDetail.pars[i])-1):v))} style={{background:'var(--border)',border:'none',color:'var(--white)',width:28,height:28,borderRadius:6,cursor:'pointer',fontSize:18,lineHeight:1}}>−</button>
+                      <span style={{fontFamily:'var(--font-display)',fontSize:24,minWidth:20,textAlign:'center'}}>{s??'—'}</span>
+                      <button onClick={()=>setEditScores(p=>p.map((v,j)=>j===i?(v??roundDetail.pars[i])+1:v))} style={{background:'var(--border)',border:'none',color:'var(--white)',width:28,height:28,borderRadius:6,cursor:'pointer',fontSize:18,lineHeight:1}}>+</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>)}
+
+            {/* Actions */}
+            <div className="modal-actions">
+              {!editMode ? (<>
+                <button className="btn-cancel" onClick={closeRoundDetail}>Close</button>
+                <button className="btn-cancel" style={{color:'var(--white)'}} onClick={startEditRound}>Edit</button>
+                <button onClick={()=>deleteRound(roundDetail.id)} style={{flex:1,background:'rgba(255,92,92,0.08)',border:'1px solid var(--red)',borderRadius:10,padding:14,color:'var(--red)',fontFamily:'var(--font-mono)',fontSize:13,cursor:'pointer'}}>Delete</button>
+              </>) : (<>
+                <button className="btn-cancel" onClick={()=>setEditMode(false)}>Cancel</button>
+                <button className="btn-start" onClick={saveEditRound}>Save</button>
+              </>)}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── MODAL ── */}
