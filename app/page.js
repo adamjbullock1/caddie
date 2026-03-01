@@ -224,7 +224,13 @@ export default function App() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       const course = data.course || data
-      const tees = [...(course.tees?.male || []), ...(course.tees?.female || [])]
+      const seen = new Set()
+      const tees = [...(course.tees?.male || []), ...(course.tees?.female || [])].filter(t => {
+        const key = t.tee_name?.toLowerCase() || ''
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
       setLoadedCourse({ ...course, tees })
     } catch(e) {
       setSearchError(e.message)
