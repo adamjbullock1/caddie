@@ -1,13 +1,13 @@
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
-  const query = searchParams.get('q');
+  const id = searchParams.get('id');
 
-  if (!query) {
-    return Response.json({ error: 'Missing query' }, { status: 400 });
+  if (!id) {
+    return Response.json({ error: 'Missing id' }, { status: 400 });
   }
 
   const res = await fetch(
-    `https://api.golfcourseapi.com/v1/search?search_query=${encodeURIComponent(query)}`,
+    `https://api.golfcourseapi.com/v1/courses/${encodeURIComponent(id)}`,
     { headers: { Authorization: `Key ${process.env.GOLF_API_KEY}` } }
   );
 
