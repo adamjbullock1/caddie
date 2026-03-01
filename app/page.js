@@ -87,6 +87,7 @@ export default function App() {
   const [roundDetail, setRoundDetail] = useState(null)
   const [editMode, setEditMode] = useState(false)
   const [editScores, setEditScores] = useState([])
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   // Load saved rounds on mount
   useEffect(() => {
@@ -193,8 +194,8 @@ export default function App() {
   }
 
   // ── ROUND DETAIL ───────────────────────────────────────
-  const openRoundDetail = (r) => { setRoundDetail(r); setEditMode(false); setEditScores([]) }
-  const closeRoundDetail = () => { setRoundDetail(null); setEditMode(false); setEditScores([]) }
+  const openRoundDetail = (r) => { setRoundDetail(r); setEditMode(false); setEditScores([]); setConfirmDelete(false) }
+  const closeRoundDetail = () => { setRoundDetail(null); setEditMode(false); setEditScores([]); setConfirmDelete(false) }
   const startEditRound = () => {
     setEditScores(roundDetail.holeData.map(h => h?.score ?? null))
     setEditMode(true)
@@ -212,7 +213,6 @@ export default function App() {
     setEditMode(false)
   }
   const deleteRound = (id) => {
-    if (!window.confirm('Delete this round?')) return
     const newRounds = rounds.filter(r => r.id !== id)
     setRounds(newRounds)
     localStorage.setItem('caddie_rounds', JSON.stringify(newRounds))
@@ -679,16 +679,26 @@ export default function App() {
             </>)}
 
             {/* Actions */}
-            <div className="modal-actions">
-              {!editMode ? (<>
-                <button className="btn-cancel" onClick={closeRoundDetail}>Close</button>
-                <button className="btn-cancel" style={{color:'var(--white)'}} onClick={startEditRound}>Edit</button>
-                <button onClick={()=>deleteRound(roundDetail.id)} style={{flex:1,background:'rgba(255,92,92,0.08)',border:'1px solid var(--red)',borderRadius:10,padding:14,color:'var(--red)',fontFamily:'var(--font-mono)',fontSize:13,cursor:'pointer'}}>Delete</button>
-              </>) : (<>
-                <button className="btn-cancel" onClick={()=>setEditMode(false)}>Cancel</button>
-                <button className="btn-start" onClick={saveEditRound}>Save</button>
-              </>)}
-            </div>
+            {confirmDelete ? (
+              <div style={{background:'rgba(255,92,92,0.06)',border:'1px solid var(--red)',borderRadius:12,padding:'14px 16px',marginTop:8}}>
+                <div style={{fontSize:12,color:'var(--white)',marginBottom:12,textAlign:'center'}}>Delete this round? This can't be undone.</div>
+                <div className="modal-actions" style={{marginTop:0}}>
+                  <button className="btn-cancel" onClick={()=>setConfirmDelete(false)}>Cancel</button>
+                  <button onClick={()=>deleteRound(roundDetail.id)} style={{flex:1,background:'var(--red)',border:'none',borderRadius:10,padding:14,color:'var(--white)',fontFamily:'var(--font-mono)',fontSize:13,fontWeight:600,cursor:'pointer'}}>Delete</button>
+                </div>
+              </div>
+            ) : (
+              <div className="modal-actions">
+                {!editMode ? (<>
+                  <button className="btn-cancel" onClick={closeRoundDetail}>Close</button>
+                  <button className="btn-cancel" style={{color:'var(--white)'}} onClick={startEditRound}>Edit</button>
+                  <button onClick={()=>setConfirmDelete(true)} style={{flex:1,background:'rgba(255,92,92,0.08)',border:'1px solid var(--red)',borderRadius:10,padding:14,color:'var(--red)',fontFamily:'var(--font-mono)',fontSize:13,cursor:'pointer'}}>Delete</button>
+                </>) : (<>
+                  <button className="btn-cancel" onClick={()=>setEditMode(false)}>Cancel</button>
+                  <button className="btn-start" onClick={saveEditRound}>Save</button>
+                </>)}
+              </div>
+            )}
           </div>
         </div>
       )}
