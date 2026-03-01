@@ -58,6 +58,12 @@ function fmtSG(v) { return isNaN(v) ? '—' : (v>=0?'+':'')+v.toFixed(2) }
 function sgCls(v) { return isNaN(v) ? 'neu' : v>0.05?'pos':v<-0.05?'neg':'neu' }
 function scoreToPar(d) { return d===0?'E':d>0?`+${d}`:`${d}` }
 function defaultPars(n) { return n===9?[4,3,4,5,4,3,4,5,4]:[4,3,4,5,4,3,4,5,4,4,3,4,5,4,3,4,5,4] }
+function haversineMi(lat1,lon1,lat2,lon2) {
+  const R=3958.8,dLat=(lat2-lat1)*Math.PI/180,dLon=(lon2-lon1)*Math.PI/180
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))
+}
+function fmtMi(mi) { return mi<10?`${mi.toFixed(1)} mi`:`${Math.round(mi)} mi` }
 
 // ── MAIN COMPONENT ────────────────────────────────────────
 export default function App() {
@@ -84,6 +90,7 @@ export default function App() {
   const [selectedTeeIdx, setSelectedTeeIdx] = useState(null)
   const [courseLoading, setCourseLoading] = useState(false)
   const searchTimeout = useRef(null)
+  const userLocationRef = useRef(null)
   const [roundDetail, setRoundDetail] = useState(null)
   const [editMode, setEditMode] = useState(false)
   const [editScores, setEditScores] = useState([])
@@ -229,7 +236,14 @@ export default function App() {
       const res = await fetch(`/api/courses?q=${encodeURIComponent(q)}`)
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
-      setSearchResults(data.courses?.slice(0,6) || [])
+      let courses = data.courses?.slice(0,20) || []
+      const loc = userLocationRef.current
+      if (loc) {
+        courses = courses
+          .map(c => ({ ...c, _dist: c.location?.latitude && c.location?.longitude ? haversineMi(loc.lat,loc.lon,c.location.latitude,c.location.longitude) : Infinity }))
+          .sort((a,b) => a._dist - b._dist)
+      }
+      setSearchResults(courses.slice(0,6))
     } catch(e) {
       setSearchError(e.message)
     } finally {
@@ -315,6 +329,12 @@ export default function App() {
     setSelectedClub(null)
     setLoadedCourse(null)
     setSelectedTeeIdx(null)
+    if (navigator.geolocation && !userLocationRef.current) {
+      navigator.geolocation.getCurrentPosition(
+        pos => { userLocationRef.current = { lat: pos.coords.latitude, lon: pos.coords.longitude } },
+        () => {}
+      )
+    }
   }
 
   // ── SHOT TRACKER ───────────────────────────────────────
@@ -721,7 +741,7 @@ export default function App() {
                     {searchResults.map(c=>(
                       <div key={c.id} className="search-result-item" onClick={()=>selectClub(c)}>
                         <h4>{c.club_name}</h4>
-                        <p>{[c.location?.city,c.location?.state].filter(Boolean).join(', ')}{c.location?.country?` · ${c.location.country}`:''}</p>
+                        <p>{[c.location?.city,c.location?.state].filter(Boolean).join(', ')}{c.location?.country?` · ${c.location.country}`:''}{c._dist!=null&&c._dist!==Infinity?` · ${fmtMi(c._dist)}`:''}</p>
                       </div>
                     ))}
                   </div>
