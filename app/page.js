@@ -225,12 +225,14 @@ export default function App() {
       if (!res.ok) throw new Error(data.error)
       const course = data.course || data
       const seen = new Set()
-      const tees = [...(course.tees?.male || []), ...(course.tees?.female || [])].filter(t => {
-        const key = t.tee_name?.toLowerCase() || ''
-        if (seen.has(key)) return false
-        seen.add(key)
-        return true
-      })
+      const tees = [...(course.tees?.male || []), ...(course.tees?.female || [])]
+        .filter(t => {
+          const key = t.tee_name?.toLowerCase() || ''
+          if (seen.has(key)) return false
+          seen.add(key)
+          return true
+        })
+        .sort((a, b) => (b.total_yards || 0) - (a.total_yards || 0))
       setLoadedCourse({ ...course, tees })
     } catch(e) {
       setSearchError(e.message)
