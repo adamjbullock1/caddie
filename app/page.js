@@ -535,9 +535,10 @@ export default function App() {
             {modalStep==='search' && (
               <>
                 <div className="modal-label">SEARCH COURSE</div>
-                <input className="modal-input" placeholder="e.g. Pebble Beach" value={searchQuery} onChange={e=>handleSearchInput(e.target.value)} autoFocus />
+                <input className="modal-input" placeholder="Course name or city, e.g. Pebble Beach" value={searchQuery} onChange={e=>handleSearchInput(e.target.value)} autoFocus />
                 {searching && <div style={{fontSize:12,color:'var(--muted)',padding:'8px 0'}}>Searching…</div>}
                 {searchError && <div style={{fontSize:12,color:'var(--red)',padding:'8px 0'}}>Error: {searchError}</div>}
+                {!searching && searchQuery.length > 1 && searchResults.length === 0 && !searchError && <div style={{fontSize:12,color:'var(--muted)',padding:'8px 0'}}>No courses found.</div>}
                 {searchResults.length > 0 && (
                   <div className="search-results" style={{display:'block'}}>
                     {searchResults.map(c=>(
