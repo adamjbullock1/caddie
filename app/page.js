@@ -207,14 +207,27 @@ export default function App() {
   }
 
   const startRound = () => {
-    if (selectedTeeIdx === null || !loadedCourse) return
-    const tee = loadedCourse.tees[selectedTeeIdx]
-    const holes = tee.holes || []
-    const pars = holes.length ? holes.map(h=>h.par||4) : defaultPars(18)
-    const yardages = holes.length ? holes.map(h=>h.yardage||null) : null
+    const hasTees = loadedCourse?.tees?.length > 0
+    let pars, yardages, teeName
+    if (hasTees && selectedTeeIdx !== null) {
+      const tee = loadedCourse.tees[selectedTeeIdx]
+      const holes = tee.holes || []
+      pars = holes.length ? holes.map(h=>h.par||4) : defaultPars(18)
+      yardages = holes.length ? holes.map(h=>h.yardage||null) : null
+      teeName = tee.tee_name || tee.name || ''
+    } else if (!hasTees) {
+      const holesEl = document.getElementById('manual-holes')
+      const parEl = document.getElementById('manual-par')
+      const numHoles = holesEl ? parseInt(holesEl.value) : 18
+      pars = defaultPars(numHoles)
+      yardages = null
+      teeName = ''
+    } else {
+      return
+    }
     const round = {
-      course: selectedClub.name,
-      teeName: tee.tee_name || tee.name || '',
+      course: selectedClub.club_name || selectedClub.name,
+      teeName,
       holes: pars.length,
       pars, yardages,
       date: new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
@@ -550,7 +563,7 @@ export default function App() {
                 </div>
                 <div className="modal-label">SELECT TEES</div>
                 {courseLoading && <div style={{fontSize:12,color:'var(--muted)',padding:'12px 0'}}>Loading course data…</div>}
-                {loadedCourse?.tees && (
+                {!courseLoading && loadedCourse?.tees?.length > 0 && (
                   <div className="tee-list">
                     {loadedCourse.tees.map((t,i)=>{
                       const yds=t.holes?t.holes.reduce((s,h)=>s+(h.yardage||0),0):(t.total_yards||'—')
@@ -564,9 +577,27 @@ export default function App() {
                     })}
                   </div>
                 )}
+                {!courseLoading && loadedCourse && (!loadedCourse.tees || loadedCourse.tees.length === 0) && (
+                  <div style={{marginBottom:12}}>
+                    <div style={{fontSize:11,color:'var(--muted)',marginBottom:12}}>No tee data found — enter manually:</div>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+                      <div>
+                        <div className="modal-label">HOLES</div>
+                        <select className="modal-input" id="manual-holes" style={{cursor:'pointer'}}>
+                          <option value="18">18 Holes</option>
+                          <option value="9">9 Holes</option>
+                        </select>
+                      </div>
+                      <div>
+                        <div className="modal-label">COURSE PAR</div>
+                        <input className="modal-input" id="manual-par" type="number" defaultValue="72" min="60" max="75"/>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div className="modal-actions">
                   <button className="btn-cancel" onClick={()=>setModal(false)}>Cancel</button>
-                  <button className="btn-start" onClick={startRound} disabled={selectedTeeIdx===null}>TEE OFF</button>
+                  <button className="btn-start" onClick={startRound} disabled={!courseLoading && loadedCourse?.tees?.length > 0 && selectedTeeIdx===null}>TEE OFF</button>
                 </div>
               </>
             )}
