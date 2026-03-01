@@ -143,6 +143,31 @@ export default function App() {
     }
   }
 
+  const exitRound = () => {
+    if (!window.confirm('Save this round as unfinished?')) return
+    const completedHoleData = holeData.map(h => h || null)
+    const holesCompleted = completedHoleData.filter(Boolean).length
+    const round = {
+      id: Date.now(),
+      course: activeRound.course,
+      teeName: activeRound.teeName,
+      date: activeRound.date,
+      holes: activeRound.holes,
+      pars: activeRound.pars,
+      yardages: activeRound.yardages,
+      holeData: completedHoleData,
+      totalScore: completedHoleData.reduce((s,h)=>s+(h?.score||0),0),
+      totalPar: activeRound.pars.reduce((a,b)=>a+b,0),
+      holesCompleted,
+      status: 'unfinished',
+    }
+    const newRounds = [round, ...rounds]
+    setRounds(newRounds)
+    localStorage.setItem('caddie_rounds', JSON.stringify(newRounds))
+    setActiveRound(null)
+    setHoleData([])
+  }
+
   const finishRound = (finalHoleData) => {
     const round = {
       id: Date.now(),
@@ -335,9 +360,12 @@ export default function App() {
                 <h2>{activeRound.course}</h2>
                 <p>{activeRound.date}{activeRound.teeName ? ` · ${activeRound.teeName} tees` : ''}</p>
               </div>
-              <div className="score-summary">
-                <div className={`score-total${toPar>0?' over':toPar===0?' even':''}`}>{scoreToPar(toPar)}</div>
-                <div className="score-label">TO PAR</div>
+              <div style={{display:'flex',alignItems:'center',gap:10}}>
+                <div className="score-summary">
+                  <div className={`score-total${toPar>0?' over':toPar===0?' even':''}`}>{scoreToPar(toPar)}</div>
+                  <div className="score-label">TO PAR</div>
+                </div>
+                <button onClick={exitRound} style={{background:'none',border:'1.5px solid var(--border)',borderRadius:8,color:'var(--muted)',fontSize:11,padding:'6px 10px',cursor:'pointer',whiteSpace:'nowrap'}}>Exit</button>
               </div>
             </div>
 
@@ -511,10 +539,13 @@ export default function App() {
             </div>
 
             <div className="section-title">ROUND HISTORY</div>
-            {rounds.map(r=>{ const d=r.totalScore-r.totalPar; return (
+            {rounds.map(r=>{ const d=r.totalScore-r.totalPar; const unfinished=r.status==='unfinished'; return (
               <div key={r.id} className="round-item">
-                <div className="round-item-left"><h3>{r.course}</h3><p>{r.date} · {r.holes} holes · Par {r.totalPar}</p></div>
-                <div><div className={`round-score${d>0?' over':''}`}>{r.totalScore}</div><div style={{fontSize:11,color:'var(--muted)',textAlign:'right'}}>{scoreToPar(d)}</div></div>
+                <div className="round-item-left">
+                  <h3>{r.course}{unfinished && <span style={{marginLeft:7,fontSize:10,color:'var(--muted)',fontWeight:400,border:'1px solid var(--border)',borderRadius:4,padding:'1px 5px',verticalAlign:'middle'}}>UNFINISHED</span>}</h3>
+                  <p>{r.date} · {unfinished ? `${r.holesCompleted}/${r.holes}` : r.holes} holes · Par {r.totalPar}</p>
+                </div>
+                <div><div className={`round-score${d>0?' over':''}`}>{r.totalScore}</div><div style={{fontSize:11,color:'var(--muted)',textAlign:'right'}}>{unfinished ? '—' : scoreToPar(d)}</div></div>
               </div>
             )})}
           </>
