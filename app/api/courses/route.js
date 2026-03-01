@@ -16,6 +16,5 @@ export async function GET(request) {
   }
 
   const data = await res.json();
-  console.log('Golf API search response sample:', JSON.stringify((data.courses || data).slice?.(0,2) ?? data).slice(0, 2000));
   return Response.json(data);
 }

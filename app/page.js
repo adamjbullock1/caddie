@@ -198,7 +198,9 @@ export default function App() {
       const res = await fetch(`/api/course?id=${club.id}`)
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      setLoadedCourse(data.course || data)
+      const course = data.course || data
+      const tees = [...(course.tees?.male || []), ...(course.tees?.female || [])]
+      setLoadedCourse({ ...course, tees })
     } catch(e) {
       setSearchError(e.message)
     } finally {
