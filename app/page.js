@@ -96,12 +96,13 @@ export default function App() {
   const [editMode, setEditMode] = useState(false)
   const [editScores, setEditScores] = useState([])
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [nearbyResults, setNearbyResults] = useState([])
+  const [nearbyLoading, setNearbyLoading] = useState(false)
 
   // Load rounds from Supabase on mount
   useEffect(() => {
     supabase.from('rounds').select('*').order('created_at', { ascending: false })
       .then(({ data, error }) => {
-        console.log('[Supabase] fetch result:', { data, error })
         if (!error && data) setRounds(data.map(rowToRound))
       })
   }, [])
@@ -157,8 +158,7 @@ export default function App() {
       holesCompleted,
       status: 'unfinished',
     }
-    const { error: exitErr } = await supabase.from('rounds').insert(roundToRow(round))
-    console.log('[Supabase] exitRound insert error:', exitErr)
+    await supabase.from('rounds').insert(roundToRow(round))
     setRounds(prev => [round, ...prev])
     setActiveRound(null)
     setHoleData([])
@@ -177,8 +177,7 @@ export default function App() {
       totalScore: finalHoleData.reduce((s,h)=>s+(h?.score||0),0),
       totalPar: activeRound.pars.reduce((a,b)=>a+b,0),
     }
-    const { error: finishErr } = await supabase.from('rounds').insert(roundToRow(round))
-    console.log('[Supabase] finishRound insert error:', finishErr)
+    await supabase.from('rounds').insert(roundToRow(round))
     setRounds(prev => [round, ...prev])
     setActiveRound(null)
     setHoleData([])
@@ -312,10 +311,33 @@ export default function App() {
     setSelectedClub(null)
     setLoadedCourse(null)
     setSelectedTeeIdx(null)
-    if (navigator.geolocation && !userLocationRef.current) {
+    setNearbyResults([])
+
+    const fetchNearby = async (lat, lon) => {
+      setNearbyLoading(true)
+      try {
+        const res = await fetch(`/api/nearby?lat=${lat}&lng=${lon}`)
+        const data = await res.json()
+        if (data.courses) {
+          const sorted = data.courses
+            .map(c => ({ ...c, _dist: c.location?.latitude && c.location?.longitude ? haversineMi(lat, lon, c.location.latitude, c.location.longitude) : Infinity }))
+            .sort((a, b) => a._dist - b._dist)
+            .slice(0, 5)
+          setNearbyResults(sorted)
+        }
+      } catch(e) {}
+      setNearbyLoading(false)
+    }
+
+    if (userLocationRef.current) {
+      fetchNearby(userLocationRef.current.lat, userLocationRef.current.lon)
+    } else if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        pos => { userLocationRef.current = { lat: pos.coords.latitude, lon: pos.coords.longitude } },
-        () => {}
+        pos => {
+          userLocationRef.current = { lat: pos.coords.latitude, lon: pos.coords.longitude }
+          fetchNearby(pos.coords.latitude, pos.coords.longitude)
+        },
+        () => { setNearbyLoading(false) }
       )
     }
   }
@@ -728,6 +750,24 @@ export default function App() {
                       </div>
                     ))}
                   </div>
+                )}
+                {searchQuery === '' && (
+                  <>
+                    {nearbyLoading && <div style={{fontSize:12,color:'var(--muted)',padding:'8px 0'}}>Finding nearby courses…</div>}
+                    {!nearbyLoading && nearbyResults.length > 0 && (
+                      <>
+                        <div className="modal-label" style={{marginTop:12}}>NEARBY COURSES</div>
+                        <div className="search-results" style={{display:'block'}}>
+                          {nearbyResults.map(c=>(
+                            <div key={c.id} className="search-result-item" onClick={()=>selectClub(c)}>
+                              <h4>{c.club_name}</h4>
+                              <p>{[c.location?.city,c.location?.state].filter(Boolean).join(', ')}{c._dist!=null&&c._dist!==Infinity?` · ${fmtMi(c._dist)}`:''}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </>
                 )}
                 <div className="modal-actions">
                   <button className="btn-cancel" onClick={()=>setModal(false)}>Cancel</button>
