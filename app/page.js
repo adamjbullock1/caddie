@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { supabase, rowToRound, roundToRow } from './lib/supabase'
 
 // ── STROKES GAINED BASELINES ──────────────────────────────
 const SG_BASELINE = {
@@ -96,29 +97,13 @@ export default function App() {
   const [editScores, setEditScores] = useState([])
   const [confirmDelete, setConfirmDelete] = useState(false)
 
-  // Load saved rounds on mount
+  // Load rounds from Supabase on mount
   useEffect(() => {
-    const saved = localStorage.getItem('caddie_rounds')
-    if (saved) setRounds(JSON.parse(saved))
-  }, [])
-
-  // Seed demo data
-  useEffect(() => {
-    const saved = localStorage.getItem('caddie_rounds')
-    if (!saved || JSON.parse(saved).length === 0) {
-      const dp = defaultPars(18)
-      const demo = [
-        {id:1,course:'Torrey Pines (South)',date:'Feb 15, 2026',holes:18,pars:dp,yardages:null,
-         holeData:dp.map((p,i)=>({score:p+[1,0,-1,2,0,0,1,0,-1,0,1,0,0,1,-1,0,2,0][i],fir:Math.random()>0.45,gir:Math.random()>0.55,putts:[1,2,2,3,2,2,2,1,2,2,2,2,2,2,1,2,2,2][i],penalties:0,notes:'',shots:[]})),
-         totalPar:72},
-        {id:2,course:'Torrey Pines (North)',date:'Feb 8, 2026',holes:18,pars:dp,yardages:null,
-         holeData:dp.map((p,i)=>({score:p+[0,1,0,1,2,-1,0,1,0,0,-1,1,0,2,0,1,0,1][i],fir:Math.random()>0.4,gir:Math.random()>0.5,putts:[2,2,1,2,3,2,2,2,2,2,2,2,1,2,2,2,2,2][i],penalties:0,notes:'',shots:[]})),
-         totalPar:72},
-      ]
-      demo.forEach(r => r.totalScore = r.holeData.reduce((s,h)=>s+h.score,0))
-      setRounds(demo)
-      localStorage.setItem('caddie_rounds', JSON.stringify(demo))
-    }
+    supabase.from('rounds').select('*').order('created_at', { ascending: false })
+      .then(({ data, error }) => {
+        console.log('[Supabase] fetch result:', { data, error })
+        if (!error && data) setRounds(data.map(rowToRound))
+      })
   }, [])
 
   // When switching holes load saved data
@@ -142,7 +127,7 @@ export default function App() {
     return totalScore - completedPar
   }
 
-  const saveHole = () => {
+  const saveHole = async () => {
     const newHoleData = [...holeData]
     newHoleData[currentHole] = {score,fir,gir,putts,penalties,notes,shots}
     setHoleData(newHoleData)
@@ -150,11 +135,11 @@ export default function App() {
     const nextHole = currentHole < total-1 ? currentHole+1 : currentHole
     if (currentHole < total-1) setCurrentHole(nextHole)
     if (newHoleData.filter(Boolean).length === total) {
-      finishRound(newHoleData)
+      await finishRound(newHoleData)
     }
   }
 
-  const exitRound = () => {
+  const exitRound = async () => {
     if (!window.confirm('Save this round as unfinished?')) return
     const completedHoleData = holeData.map(h => h || null)
     const holesCompleted = completedHoleData.filter(Boolean).length
@@ -172,14 +157,13 @@ export default function App() {
       holesCompleted,
       status: 'unfinished',
     }
-    const newRounds = [round, ...rounds]
-    setRounds(newRounds)
-    localStorage.setItem('caddie_rounds', JSON.stringify(newRounds))
+    await supabase.from('rounds').insert(roundToRow(round))
+    setRounds(prev => [round, ...prev])
     setActiveRound(null)
     setHoleData([])
   }
 
-  const finishRound = (finalHoleData) => {
+  const finishRound = async (finalHoleData) => {
     const round = {
       id: Date.now(),
       course: activeRound.course,
@@ -192,9 +176,8 @@ export default function App() {
       totalScore: finalHoleData.reduce((s,h)=>s+(h?.score||0),0),
       totalPar: activeRound.pars.reduce((a,b)=>a+b,0),
     }
-    const newRounds = [round, ...rounds]
-    setRounds(newRounds)
-    localStorage.setItem('caddie_rounds', JSON.stringify(newRounds))
+    await supabase.from('rounds').insert(roundToRow(round))
+    setRounds(prev => [round, ...prev])
     setActiveRound(null)
     setHoleData([])
     alert(`Round complete! ${round.totalScore} (${scoreToPar(round.totalScore-round.totalPar)})`)
@@ -207,22 +190,20 @@ export default function App() {
     setEditScores(roundDetail.holeData.map(h => h?.score ?? null))
     setEditMode(true)
   }
-  const saveEditRound = () => {
+  const saveEditRound = async () => {
     const newHoleData = roundDetail.holeData.map((h, i) => ({
       ...(h || { fir:false, gir:false, putts:2, penalties:0, notes:'', shots:[] }),
       score: editScores[i] ?? roundDetail.pars[i]
     }))
     const updated = { ...roundDetail, holeData: newHoleData, totalScore: newHoleData.reduce((s,h)=>s+(h?.score||0),0) }
-    const newRounds = rounds.map(r => r.id === updated.id ? updated : r)
-    setRounds(newRounds)
-    localStorage.setItem('caddie_rounds', JSON.stringify(newRounds))
+    await supabase.from('rounds').update(roundToRow(updated)).eq('id', updated.id)
+    setRounds(prev => prev.map(r => r.id === updated.id ? updated : r))
     setRoundDetail(updated)
     setEditMode(false)
   }
-  const deleteRound = (id) => {
-    const newRounds = rounds.filter(r => r.id !== id)
-    setRounds(newRounds)
-    localStorage.setItem('caddie_rounds', JSON.stringify(newRounds))
+  const deleteRound = async (id) => {
+    await supabase.from('rounds').delete().eq('id', id)
+    setRounds(prev => prev.filter(r => r.id !== id))
     closeRoundDetail()
   }
 

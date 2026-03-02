@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__a6a6787e-d6d1-4db8-973d-c8b9533be5d7__list_projects",
+      "mcp__a6a6787e-d6d1-4db8-973d-c8b9533be5d7__apply_migration",
+      "mcp__a6a6787e-d6d1-4db8-973d-c8b9533be5d7__get_project_url",
+      "mcp__a6a6787e-d6d1-4db8-973d-c8b9533be5d7__get_publishable_keys",
+      "Bash(npm install @supabase/supabase-js)",
+      "Bash(powershell.exe -Command \"cd ''C:\\\\Users\\\\Bazdrak PC\\\\Desktop\\\\Claude\\\\Caddie''; npm install @supabase/supabase-js\")",
+      "Bash(powershell.exe -Command \"Get-Command node,npm -ErrorAction SilentlyContinue | Select-Object Name,Source; [System.IO.Directory]::Exists\\(''C:\\\\Program Files\\\\nodejs''\\)\")",
+      "Bash(cmd.exe /c \"where node 2>&1 && where npm 2>&1\")",
+      "Bash(cmd.exe /c \"where node\")",
+      "Bash(cmd.exe /c where node)",
+      "mcp__a6a6787e-d6d1-4db8-973d-c8b9533be5d7__execute_sql",
+      "mcp__a6a6787e-d6d1-4db8-973d-c8b9533be5d7__get_logs"
+    ]
+  }
+}
