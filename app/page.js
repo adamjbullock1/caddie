@@ -157,7 +157,8 @@ export default function App() {
       holesCompleted,
       status: 'unfinished',
     }
-    await supabase.from('rounds').insert(roundToRow(round))
+    const { error: exitErr } = await supabase.from('rounds').insert(roundToRow(round))
+    console.log('[Supabase] exitRound insert error:', exitErr)
     setRounds(prev => [round, ...prev])
     setActiveRound(null)
     setHoleData([])
@@ -176,7 +177,8 @@ export default function App() {
       totalScore: finalHoleData.reduce((s,h)=>s+(h?.score||0),0),
       totalPar: activeRound.pars.reduce((a,b)=>a+b,0),
     }
-    await supabase.from('rounds').insert(roundToRow(round))
+    const { error: finishErr } = await supabase.from('rounds').insert(roundToRow(round))
+    console.log('[Supabase] finishRound insert error:', finishErr)
     setRounds(prev => [round, ...prev])
     setActiveRound(null)
     setHoleData([])
